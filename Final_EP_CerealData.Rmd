@@ -1,0 +1,1106 @@
+---
+title: "EP_Cereal"
+author: "Stephanie Siguencia Ibadango, Maryam Moradi, Nigar Salmanzada, Canberk Atak"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  html_document: default
+---
+```{r}
+getwd()
+```
+
+```{r}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+### Libraries 
+```{r}
+library(readxl)
+library(data.table)
+library(haven)
+library(modelsummary)
+library(ggplot2)
+library(tidyverse)
+library(dplyr)
+library(tidyr)
+library(naniar)
+library(fixest)
+library(lfe)
+library(sandwich)
+library(lmtest)
+library(knitr)
+library(corrplot)
+
+```
+
+#Import data:
+```{r}
+datapath <- file.path(getwd(), "Cereal_Data.xls") 
+cerealdata <- read_excel(datapath)
+```
+
+
+####QUESTION1
+1.  **Data Description.** 
+**Provide a brief, non-technical, overview of the market using descriptive tools (tables, plots) and focusing on a lay audience. Which are the salient features of the market, the main brands, segments, and products?**
+
+# Missing observations: 
+```{r}
+sapply(cerealdata, function(x) sum(is.na(x)))
+```
+
+```{r}
+library(naniar)
+vis_miss(cerealdata, warn_large_data = FALSE)
+```
+
+In total 1% of observations are missing values. 
+
+# Remove rows with missing values
+```{r}
+cerealdata <- na.omit(cerealdata)
+```
+
+
+```{r}
+datasummary( All(cerealdata) ~ mean + sd + min + median + max, fmt = 4, data = cerealdata, output = "markdown")
+```
+##discount&coupons
+
+```{r}
+# create a variable "coupon"
+cerealdata <- cerealdata%>%
+  mutate(coupon = `Avg Shelf Price` - `Avg Trans Price`)
+```
+
+
+```{r}
+
+# Group, breakfast cereals under the different market segment 
+avg_prices_by_segment <- cerealdata %>%
+  group_by(Sgmnt) %>%
+  summarise(AvgShelfPrice = mean(`Avg Shelf Price`, na.rm = TRUE))
+
+print(avg_prices_by_segment)
+
+# Different prices for consumer heterogeneity
+
+plot_1 <- ggplot(cerealdata, aes(x = Sgmnt, y = `Avg Shelf Price`, fill = Sgmnt)) +
+  geom_boxplot() +
+  labs(x = "Segment",
+       y = "Average Shelf Price") +
+  theme_minimal() +
+  scale_fill_brewer(palette = "Pastel1") + 
+  theme(plot.title = element_text(face = "italic"))
+
+ggsave("Comparison of Average Shelf Prices by Segment.jpeg", plot = plot_1, width = 10, height = 6, dpi = 600)
+
+print(plot_1)
+
+```
+
+```{r}
+# 
+# # Top 10 cereals in the market based on their Market share
+# 
+# plot_2 <- cerealdata %>%
+#   top_n(10, `Mkt Share`) %>%
+#   ggplot(aes(x = reorder(Name, `Mkt Share`), y = `Mkt Share`)) +
+#   geom_bar(stat = "identity", fill = "darkblue") +
+#   coord_flip() + # This makes it horizontal for better readability
+#   labs(title = "Top 10 Cereals by Market Share", x = "", y = "Market Share (%)") +
+#   theme_minimal()
+# 
+# print(plot_2)
+# 
+# ggsave(filename = "Top 10 Cereals by Market Share.jpeg" ,plot_2 )
+
+```
+
+```{r}
+# Seeing the different price and different nutritional values
+# Identifying the row with the maximum value for each variable
+
+max_fat <- cerealdata[which.max(cerealdata$Fat),]
+max_cals <- cerealdata[which.max(cerealdata$Cals),]
+max_sugar <- cerealdata[which.max(cerealdata$Sugar),]
+max_price <- cerealdata[which.max(cerealdata$`Avg Shelf Price`),]
+
+# Combining these into a single data frame for annotation
+max_values <- bind_rows(max_fat, max_cals, max_sugar, max_price)
+
+plot_3 <- ggplot(cerealdata, aes(x = Sugar, y = `Avg Shelf Price`, size = Cals, color = Fat)) +
+  geom_point(alpha = 0.7) +
+  geom_label(data = max_values, 
+             aes(label = paste("F:", round(Fat,1), "C:", round(Cals,0), "S:", round(Sugar,0), "P:", round(`Avg Shelf Price`,2))), 
+             hjust = 0.9, vjust = 1.5, 
+             size = 3,
+             label.size = NA,
+             lineheight = 0.9, 
+             fontface = "italic", 
+             color = "black") +
+  scale_color_gradient(low = "yellow", high = "red") +
+  labs(x = "Sugar Content (S)", 
+       y = "Avg Shelf Price (P)", 
+       color = "Fat Content", 
+       size = "Calorie Count") +
+  theme_minimal() +
+  guides(color = guide_colourbar(title = "Fat (F)"), size = guide_legend(title = "Calories (C)")) +
+  theme(legend.position = "right")
+
+
+ggsave(filename = "Average Shelf Price vs. Nutritional Values.jpeg", plot = plot_3, dpi = 900)
+print(plot_3)
+
+```
+
+```{r}
+# ggplot(cerealdata, aes(x = `Avg Ad Expn`, y = coupon)) +
+#   geom_point(aes(color = Sgmnt), alpha = 0.7) + 
+#   geom_smooth(method = "lm", se = FALSE, color = "gray") +
+#   labs(title = "Relationship Between Advertising Expenses and Discounts",
+#        x = "Average Advertising Expenditure",
+#        y = "Discount Amount") +
+#   theme_minimal() +
+#   scale_color_brewer(palette = "Pastel1")
+
+```
+
+```{r}
+# Different Discounts for different Segment
+
+plot_4 <- ggplot(cerealdata, aes(x = Sgmnt, y = coupon, fill = Sgmnt)) +
+  geom_point() +
+  labs(x = "Segment",
+       y = "Discount Amount") +
+  theme_minimal() +
+  scale_fill_brewer(palette = "Pastel1") +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red", linewidth = 0.5) +
+  theme(plot.title = element_text(face = "italic"))
+
+
+ggsave(filename = "Discount Distribution by Segment.jpeg",plot = plot_4, dpi = 600)
+
+print(plot_4)
+
+```
+
+```{r}
+# 
+
+plot_5 <- cerealdata %>%
+  group_by(Sgmnt) %>%
+  summarise(AvgCalories = mean(Cals, na.rm = TRUE),
+            AvgFat = mean(Fat, na.rm = TRUE),
+            AvgSugar = mean(Sugar, na.rm = TRUE)) %>%
+  gather(key = "Nutrient", value = "Average", -Sgmnt) %>%
+  ggplot(aes(x = Sgmnt, y = Average, fill = Nutrient)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Segment", y = "Average Value") +
+  theme_classic() +
+  scale_fill_brewer(palette = "Pastel1")
+
+
+ggsave(filename = "Average Nutritional Values by Segment.jpeg",plot = plot_5, dpi = 600)
+print(plot_5)
+```
+
+
+```{r}
+unique_product <- unique(cerealdata$Name)
+unique_product
+```
+##brand
+
+```{r}
+cerealdata <- cerealdata %>%
+  mutate(Brand = sub(" .*", "", Name))
+```
+
+```{r}
+unique_brand <- unique(cerealdata$Brand)
+unique_brand
+```
+
+### plots of market share grouped by brand
+```{r}
+
+# Calculating total market share for each brand
+df_brand <- cerealdata %>%
+  group_by(Brand) %>%
+  summarize(total_market_share = sum(`Mkt Share`)) %>%
+  arrange(desc(total_market_share))
+
+# Plot
+plot_6 <- ggplot(df_brand, aes(x = reorder(Brand, total_market_share), y = total_market_share, fill = Brand)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = total_market_share), position = position_stack(vjust = 0.5), size = 3.5, color = "black") +
+  labs(x = "Brand",
+       y = "Total Market Share (%)") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "none")
+
+ggsave("Market Share by Brands.jpeg", plot_6)
+print(plot_6)
+
+```
+
+```{r}
+
+# Counting the number of products for each brand
+brand_counts <- cerealdata %>%
+  group_by(Brand) %>%
+  summarise(Products = n())
+
+# Creating a bar plot showing the number of products for each brand
+plot_7 <- ggplot(brand_counts, aes(x = reorder(Brand, Products), y = Products, fill = Brand)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = Products), position = position_stack(vjust = 0.5), size = 3.5, color = "black") +
+  coord_flip() +
+  labs(x = "Brand",
+       y = "Number of Products") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+ggsave("Number of Products by Brand.jpeg", plot_7)
+
+print(plot_7)
+
+
+```
+
+
+```{r}
+unique_product <- unique(cerealdata$Name)
+unique_product
+```
+
+# plots of market share grouped by brand
+```{r}
+library(ggplot2)
+
+# Calculate total market share for each brand
+df_brand <- cerealdata %>%
+  group_by(Brand) %>%
+  summarize(total_market_share = sum(`Mkt Share`)) %>%
+  arrange(desc(total_market_share))
+
+# Plot
+ggplot(df_brand, aes(x = reorder(Brand, total_market_share), y = total_market_share, fill = Brand)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Market Share by Brand",
+       x = "Brand",
+       y = "Total Market Share (%)") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "none")
+
+```
+
+
+
+
+####QUESTION2
+
+2.  **The basics and OLS estimation.** 
+**Load the data, define the share of the outside good, create a variable to store the brand information and create the dependent variable to be used in the logit regressions (mean utility). Then estimate the following six specifications using OLS and including product characteristics Price, Cals, Fat, and Sugar:**
+
+# Load data:
+```{r}
+datapath <- file.path(getwd(), "Cereal_Data.xls") 
+cerealdata <- read_excel(datapath)
+cerealdata <- na.omit(cerealdata)
+names(cerealdata)
+```
+*share of the outside good*
+```{r}
+outside_share=100-round(sum(cerealdata$`Mkt Share`))
+```
+
+*brand information*
+```{r}
+cerealdata <- cerealdata %>%
+  mutate(
+    Brand = word(Name, 1, sep = " "),
+    Product = word(Name, 2, sep = " "))
+cerealdata$fbrand <- as.factor(cerealdata$Brand)
+cerealdata$fsegment <- as.factor(cerealdata$Sgmnt)
+```
+
+```{r}
+names(cerealdata)
+```
+
+
+```{r}
+cerealdata <- cerealdata %>%
+  mutate(dummy = model.matrix(~ fbrand - 1, data = .))
+
+```
+
+
+*mean utility as dependent variable*
+
+```{r}
+cerealdata <- cerealdata %>%
+  mutate(mean_utility = log(`Mkt Share`) - log(outside_share))
+      
+```
+**Then estimate the following six specifications using OLS and including product characteristics Price, Cals, Fat, and Sugar:**
+
+```{r}
+names(cerealdata)
+
+```
+
+*(1) Without brand fixed-effects, standard errors assuming IID errors;*
+
+```{r}
+# Model specification without brand fixed-effects and with IID standard errors
+ols_1 <- feols(mean_utility ~Cals + Fat + Sugar+`Avg Shelf Price`, data = cerealdata, se = 'iid')
+summary(ols_1)
+
+
+
+```
+
+
+
+
+*(2) Without brand fixed-effects, heteroskedasticity-robust standard errors;*
+
+```{r}
+ols_2 <- feols(mean_utility ~ Cals + Fat + Sugar+`Avg Shelf Price`, data = cerealdata, vcov = "HC1")
+summary(ols_2)
+```
+
+
+
+*(3) Without brand fixed-effects, standard errors clustered at the brand level*
+
+```{r}
+
+ols_3 <- feols(mean_utility ~ Cals + Fat + Sugar+`Avg Shelf Price` , data = cerealdata, se = 'cluster', cluster = "Brand")
+summary(ols_3)
+
+
+```
+
+
+
+*By adding a brand fixed-effect I control for unobserved quality, *
+*(4) With brand fixed-effects, standard errors assuming IID errors;*
+```{r}
+
+ols_4 <- feols(mean_utility ~ Cals + Fat + Sugar+`Avg Shelf Price`| fbrand, data = cerealdata,
+                     se = 'iid')
+summary(ols_4)
+```
+
+
+*(5) With brand fixed-effects, heteroskedasticity-robust standard errors*
+```{r}
+ols_5 <- feols(mean_utility ~ Cals + Fat + Sugar+`Avg Shelf Price`| fbrand, data = cerealdata,
+                     vcov = 'HC1')
+summary(ols_5)
+```
+
+
+*(6) With brand fixed-effects, standard errors clustered at the brand level*
+```{r}
+ols_6 <- feols(mean_utility ~ Cals + Fat + Sugar+`Avg Shelf Price` | fbrand,  data = cerealdata)
+summary(ols_6)
+```
+
+#table with results#
+
+```{r}
+coef <- list('Intercept'="Intercept",
+              'Cals' = 'Caloric content of the product, per portion',
+             'Fat' = 'Fat content of the product, per portion',
+             'Sugar' = 'Sugar content of the product, per portion',
+             'Avg Shelf Price' = 'Average shelf price')
+
+gof <- data.frame(raw = c("nobs", "adj.r.squared"),
+                  clean = c("Observations", "R2 adj."),
+                  fmt = c(0,3))
+
+fe <- data.frame(FE = c("Brand FE","errors"),
+                 mod1 = c("No","idd"),
+                 mod2 = c("No","HC1"),
+                 mod3 = c("No","clustered"),
+                 mod4 = c("Yes","idd"),
+                 mod5 = c("Yes","HC1"),
+                 mod6 = c("Yes","clustered"))
+attr(fe, "position") <- c(11,12)
+
+modelsummary(list(ols_1, ols_2, ols_3, ols_4, ols_5,ols_6),
+              stars = c("*" = .1, "**" = .05, "***" = .01),
+              title = "Table 1: Analysis of cereal market using OLS with and without brand fixed-effects",gof_map = gof, add_rows = fe, output = "markdown")
+
+```
+```{r}
+cerealdata <- cerealdata %>%
+  mutate(discount_coupon = `Avg Shelf Price` - `Avg Trans Price`)
+
+```
+
+####QUESTION3
+
+3. Instruments and IV estimation. Construct instruments to account for price endogeneity and use them to perform IV estimation. Report estimates on a table with specifications differing according to the instruments used. Which instruments have you constructed, and why? Can one claim that the more the merrier when it comes to instruments in this case?
+Note. Use the OLS estimates without and with brand fixed-effects with your preferred standard errors. Instrument each of them with the instruments you constructed and report a table with 6-8 specifications in total.
+
+```{r}
+library(ggplot2)
+library(corrplot)
+library(openxlsx)
+cerealdata <- cerealdata %>%
+  mutate(fsgmnt = as.factor(Sgmnt))
+cor_matrix <- cor(subset(cerealdata, select = c("Avg Shelf Price", "Avg Trans Price" ,"Avg Ad Expn")))
+print(cor_matrix)
+
+
+correlation_matrix <- cor(cerealdata[, c("Avg Shelf Price","Avg Trans Price","Avg Ad Expn")])
+
+png("heatmap_base.png", width = 800, height = 1200, res = 300)
+heatmap(correlation_matrix)
+dev.off()
+
+
+png("heatmap_corrplot.png", width = 800, height =1080, res =150)
+corrplot(correlation_matrix, method = "color",
+         type = "upper", 
+         order = "hclust", 
+         addCoef.col = "black", 
+         col = colorRampPalette(c("lightblue", "darkblue"))(200), 
+         title = "Correlation Matrix", 
+         tl.col = "black", tl.srt = 30) 
+dev.off()
+
+
+
+
+
+```
+
+
+```{r}
+#  OLS with fixed effects
+summary(ols1_1 <- feols(mean_utility ~ Cals + Fat + Sugar + `Avg Shelf Price`, data = cerealdata, se = 'iid'))
+
+#IV with average advertising expenditure * brand
+summary(iv1a_2 <- feols(mean_utility ~ Cals + Fat + Sugar | `Avg Shelf Price` ~ `Avg Ad Expn`:fbrand, data = cerealdata, se = 'iid'))
+
+# IV with average average transaction price * brand
+summary(iv1a_3 <- feols(mean_utility ~ Cals + Fat + Sugar  | `Avg Shelf Price` ~ `Avg Trans Price`:fbrand, data = cerealdata, se = 'iid'))
+
+#  IV with average average transaction price * brand + advertising expenditure * brand
+summary(iv1a_4 <- feols(mean_utility ~ Cals + Fat + Sugar | `Avg Shelf Price` ~ `Avg Trans Price`:fbrand + `Avg Ad Expn`:fbrand, data = cerealdata, se = 'iid'))
+
+#  benchmark: OLS with fixed effects
+summary(ols_4_1 <- feols(mean_utility ~ Cals + Fat + Sugar + `Avg Shelf Price` | fbrand, data = cerealdata,
+                     se = 'iid'))
+
+#IV with average advertising expenditure * brand
+summary(iv2a_5 <- feols(mean_utility ~ Cals + Fat + Sugar | fbrand | `Avg Shelf Price` ~ `Avg Ad Expn`:fbrand,
+                        data = cerealdata, se = 'iid'))
+
+#  IV with  average transaction price * brand
+summary(iv2a_6 <- feols(mean_utility ~ Cals + Fat + Sugar | fbrand | `Avg Shelf Price` ~ `Avg Trans Price`:fbrand, 
+                        data = cerealdata, se = 'iid'))
+
+#  IV with both  average transaction price * brand and advertising expenditure * brand
+summary(iv2a_7 <- feols(mean_utility ~ Cals + Fat + Sugar | fbrand |
+                               `Avg Shelf Price` ~ `Avg Ad Expn`:fbrand + `Avg Trans Price`:fbrand,
+                             data = cerealdata, se = 'iid'))
+
+# Define coefficients
+coef <- list('Intercept'="Intercept",
+             'Cals' = 'Caloric content of the product, per portion',
+             'Fat' = 'Fat content of the product, per portion',
+             'Sugar' = 'Sugar content of the product, per portion',
+             'Avg Shelf Price' = 'Average shelf price')
+
+# Define goodness-of-fit dataframe
+gof <-  data.frame(raw = c("nobs", "adj.r.squared"),
+                   clean = c("Observations", "R2 adj."),
+                   fmt = c(0,3))
+
+# Define fixed effects dataframe
+fe <- data.frame(FE = c("Brand FE","Instruments"),
+                 mod1 = c("No","None"),
+                 mod2 = c("No", "Av. Adv Exp x Brand"),
+                 mod3 = c("No","Avg Trans Price x Brand"),
+                 mod4 = c("No","Avg Trans Price + Avg Trans Price x Brand"),
+                 mod5 = c("Yes","None"),
+                 mod6 = c("Yes","Av. Adv Exp x Brand"),
+                 mod7 = c("Yes","Sugar x Brand"),
+                 mod8 = c("Yes", "Avg Trans Price  + Avg Trans Price x Brand"))
+                  
+attr(fe, "position") <- c(14,15)
+
+# Generate model summary in markdown format
+modelsummary(list(ols1_1, iv1a_2, iv1a_3, iv1a_4, ols_4_1, iv2a_5, iv2a_6,iv2a_7),
+             stars = c("*" = .1, "**" = .05, "***" = .01),
+             output = "markdown")
+
+```
+
+
+
+
+
+# testing the Instrumental variables_maryam:
+```{r}
+fitstat(iv1a_2, ~ ivwald1 + ivf1 + kpr + sargan)
+```
+
+```{r}
+fitstat(iv1a_3, ~ ivwald1 + ivf1 + kpr + sargan)
+```
+
+```{r}
+fitstat(iv1a_4, ~ ivwald1 + ivf1 + kpr + sargan)
+```
+
+
+```{r}
+fitstat(iv2a_5, ~ ivwald1 + ivf1 + kpr + sargan)
+```
+
+```{r}
+fitstat(iv2a_6, ~ ivwald1 + ivf1 + kpr + sargan)
+```
+
+```{r}
+fitstat(iv2a_7, ~ ivwald1 + ivf1 + kpr + sargan)
+```
+
+
+
+
+###QUESTION4
+
+#More instruments and IV estimation. In case you didn’t get a satisfactory specification, can you combine instruments to get better results? If so, how? Report a table with your estimates.
+
+
+
+
+```{r}
+#price of other products within the same brand
+cerealdata <- cerealdata %>%
+  group_by(fbrand) %>%
+  mutate(brand_av_prices = sum(`Avg Shelf Price`))
+
+# Calculate iva variable
+cerealdata$iva <- with(cerealdata, {
+  ifelse(Brand == "GM", (1/18) * (brand_av_prices-`Avg Shelf Price`  ),
+  ifelse(Brand == "KG", (1/17) * (brand_av_prices-`Avg Shelf Price` ),
+  ifelse(Brand == "NB", (1/3) * (brand_av_prices-`Avg Shelf Price` ),
+  ifelse(Brand == "PT", (1/6) * (brand_av_prices-`Avg Shelf Price` ),
+  ifelse(Brand == "QK", (1/4) * (brand_av_prices-`Avg Shelf Price` ),
+  ifelse(Brand == "RL", (1/2) * (brand_av_prices-`Avg Shelf Price` ),
+         (brand_av_prices-`Avg Shelf Price` )))))))})
+
+# Compute correlation
+
+cor(subset(cerealdata, select = c("Avg Shelf Price", "iva")))
+```
+
+
+```{r}
+# discount coupon
+cerealdata <- cerealdata %>%
+  mutate(ivb = discount_coupon)
+
+cor(subset(cerealdata, select = c("Avg Shelf Price", "ivb")))
+
+
+```
+
+
+
+```{r}
+summary(cerealdata$fsegment)
+
+```
+
+```{r}
+# price by segment
+cerealdata <- cerealdata %>%
+  group_by(fsegment) %>%
+  mutate(segment_av_prices = sum(`Avg Shelf Price`))
+
+cerealdata$ivc <- with(cerealdata, {
+  ifelse(fsegment == "Adult", (1/25) * (segment_av_prices - `Avg Shelf Price`  ),
+  ifelse(fsegment == "Fam", (1/13) * (segment_av_prices - `Avg Shelf Price` ),
+  ifelse(fsegment == "Kids", (1/12) * (segment_av_prices - `Avg Shelf Price` ),
+         (segment_av_prices - `Avg Shelf Price` ))))})
+
+# Compute correlation
+
+cor(subset(cerealdata, select = c("Avg Shelf Price", "ivc")))
+```
+
+
+```{r}
+cor(subset(cerealdata, select = c("Avg Shelf Price", "iva", "ivb", "ivc")))
+```
+
+```{r}
+# Compute correlation matrix
+corr <- cor(subset(cerealdata, select = c("Avg Shelf Price", "iva", "ivb", "ivc")))
+
+# Plot heatmap with variable names
+heatmap(corr, labRow = c("Avg Shelf Price", "iva", "ivb", "ivc"), 
+        labCol = c("ASPrice", "iva", "ivb", "ivc"))
+
+```
+
+
+
+```{r}
+#model
+summary(ols2_1 <- feols(mean_utility ~ Cals + Fat + Sugar +`Avg Shelf Price`, data = cerealdata,
+                     se = 'iid'))
+summary(iv3c_1 <- feols(mean_utility ~ 1 |  `Avg Shelf Price`~ iva, data = cerealdata,
+                     se = 'iid'),stage = 1:2)
+summary(iv3c_2 <- feols(mean_utility ~ 1 |  `Avg Shelf Price`~ ivb, data = cerealdata,
+                     se = 'iid'),stage = 1:2)
+summary(iv3c_3 <- feols(mean_utility ~ 1 |  `Avg Shelf Price`~ ivc, data = cerealdata,
+                     se = 'iid'),stage = 1:2)
+
+summary(ols2_2 <- feols(mean_utility ~ Cals + Fat + Sugar +`Avg Shelf Price`|fbrand, data = cerealdata,
+                     se = 'iid'))
+
+summary(iv3c_4 <- feols(mean_utility ~ fbrand |  `Avg Shelf Price`~ iva, data = cerealdata,
+                     se = 'iid'),stage = 1:2)
+summary(iv3c_5 <- feols(mean_utility ~ fbrand |  `Avg Shelf Price`~ ivb, data = cerealdata,
+                     se = 'iid'),stage = 1:2)
+summary(iv3c_6 <- feols(mean_utility ~ fbrand |  `Avg Shelf Price`~ ivc, data = cerealdata,
+                     se = 'iid'),stage = 1:2)
+
+
+
+gof <- data.frame(raw = c("nobs", "adj.r.squared"),
+                  clean = c("Observations", "R2 adj."),
+                  fmt = c(0, 3))
+fe <- data.frame(FE = c("Brand FE", "Instruments"),
+                 mod1 = c("No", "None"),
+                 mod2 = c("No", "IVA"),
+                 mod3 = c("No", "IVB"),
+                 mod4 = c("No", "IVC"),
+                mod5 = c("Yes", "None"),
+                mod6 = c("Yes", "IVA"),
+                mod7 = c("Yes", "IVB"),
+                mod8 = c("Yes", "IVC"))
+
+attr(fe, "position") <- c(23, 24)
+
+modelsummary(list(ols2_1, iv3c_1,iv3c_2,iv3c_3, ols2_2,iv3c_4,iv3c_5,iv3c_6),
+              stars = c("*" = .1, "**" = .05, "***" = .01),
+              gof_map = gof, add_rows = fe, output = "markdown")
+
+```
+
+
+
+```{r}
+fitstat(iv3c_1, ~ ivwald1 + ivf1 + kpr + sargan)
+```
+
+
+```{r}
+fitstat(iv3c_2, ~ ivwald1 + ivf1 + kpr + sargan)
+```
+
+```{r}
+fitstat(iv3c_3, ~ ivwald1 + ivf1 + kpr + sargan)
+```
+
+```{r}
+fitstat(iv3c_4, ~ ivwald1 + ivf1 + kpr + sargan)
+```
+
+
+```{r}
+fitstat(iv3c_5, ~ ivwald1 + ivf1 + kpr + sargan)
+```
+
+```{r}
+fitstat(iv3c_6, ~ ivwald1 + ivf1 + kpr + sargan)
+```
+
+
+#interaction
+
+```{r}
+summary(ols2_1 <- feols(mean_utility ~ Cals + Fat + Sugar +`Avg Shelf Price`, 
+                        data = cerealdata, se = 'iid'))
+
+summary(iv4c_1 <- feols(mean_utility ~ 1 |  `Avg Shelf Price`~ iva +  ivb + ivc, 
+                        data = cerealdata, se = 'iid'),stage = 1:2)
+
+summary(ols2_2 <- feols(mean_utility ~ Cals + Fat + Sugar +`Avg Shelf Price`|fbrand, 
+                        data = cerealdata,se = 'iid'))
+
+summary(iv4c_2 <- feols(mean_utility ~ fbrand |  `Avg Shelf Price`~ iva + ivb +ivc, 
+                        data = cerealdata, se = 'iid'),stage = 1:2)
+
+gof <- data.frame(raw = c("nobs", "adj.r.squared"),
+                  clean = c("Observations", "R2 adj."),
+                  fmt = c(0, 3))
+fe <- data.frame(FE = c("Brand FE", "Instruments"),
+                 mod1 = c("No", "None"),
+                 mod2 = c("No", "IVA+IVB+IVC"),
+                 mod3 = c("Yes", "None"),
+                 mod4 = c("Yes", "IVA+IVB+IVC"))
+
+attr(fe, "position") <- c(23, 24)
+
+modelsummary(list(ols2_1, iv4c_1, ols2_2, iv4c_2),
+              stars = c("*" = .1, "**" = .05, "***" = .01),
+              gof_map = gof, add_rows = fe, output = "markdown")
+
+```
+
+```{r}
+fitstat(iv4c_1, ~ ivwald1 + ivf1 + kpr + sargan)
+```
+
+
+```{r}
+fitstat(iv4c_2, ~ ivwald1 + ivf1 + kpr + sargan)
+```
+
+
+###QUESTION5
+# Thinking out of the matrix. In case you didn’t get a satisfactory specification up to now, can you suggest any improvements? Hint: One improvement comes from a new variable. Another improvement comes from tackling the IIA property of logit models.
+As a guidance, When reporting, please include again the following specifications previously reported: (i) your preferred OLS logit specifications with and without brand FEs; (ii) your preferred IV logit specification with and without brand FEs which include all instruments.
+
+
+
+The "IIA property" refers to the Independence of Irrelevant Alternatives, which is a key assumption in multinomial logit models. This assumption states that the odds of choosing one alternative over another are unaffected by the presence or absence of other alternatives in the choice set.
+
+However, the IIA property is often criticized because it can lead to unrealistic modeling assumptions. When the IIA property is violated, it implies that the relative attractiveness of alternatives is influenced by the inclusion or exclusion of irrelevant alternatives in the choice set. This can result in biased model estimates and misleading predictions.
+
+There are several techniques to address or mitigate violations of the IIA property:
+
+1. **Nested Logit Models**: These models relax the assumption of independence by allowing for correlation within subsets of alternatives. Alternatives are grouped into nested subsets based on similarities or shared characteristics. This allows for more flexibility in capturing heterogeneity in preferences.
+
+
+
+
+```{r}
+# Create dummy variable for sugar
+cerealdata$sugar_dummy <- ifelse(cerealdata$Sugar >= 1, 1, 0)
+
+#withouth brand fix effect baseline model
+ols_1o <- feols(mean_utility ~ Cals + Fat + Sugar + `Avg Shelf Price`, data = cerealdata,
+                se = 'iid')
+summary(ols_1o)
+
+#new variable
+ols_1n <- feols(mean_utility ~ Cals + Fat + Sugar + `Avg Shelf Price` + sugar_dummy, data = cerealdata,
+                se = 'iid')
+summary(ols_1n)
+
+
+#with brand fix effect baseline model
+ols_4o <- feols(mean_utility ~ Cals + Fat + Sugar + `Avg Shelf Price` | fbrand, data = cerealdata,
+                se = 'iid')
+summary(ols_4o)
+
+#new variable
+ols_4n <- feols(mean_utility ~ Cals + Fat + Sugar + `Avg Shelf Price` + sugar_dummy | fbrand, data = cerealdata,
+                se = 'iid')
+summary(ols_4n)
+
+
+
+# without fe  iv1a_2 Average advert Expenditure*brand 
+
+summary(iv1a_2o <- feols(mean_utility ~ Cals + Fat + Sugar | `Avg Shelf Price` ~ `Avg Ad Expn`:fbrand, data = cerealdata, se = 'iid'))
+
+#without fe  iv1a_2 Average advert Expenditure*brand 
+summary(iv1a_2n <- feols(mean_utility ~ Cals + Fat + Sugar + sugar_dummy | `Avg Shelf Price` ~ `Avg Ad Expn`:fbrand, data = cerealdata, se = 'iid'))
+
+
+
+# with fe  iv1a_6 Average transaction price*brand 
+
+summary(iv2a_6o <- feols(mean_utility ~ Cals + Fat + Sugar | fbrand | `Avg Shelf Price` ~ `Avg Trans Price`:fbrand, 
+                        data = cerealdata, se = 'iid'))
+
+
+# with fe  iv1a_6 Average transaction price*brand 
+
+summary(iv2a_6n <- feols(mean_utility ~ Cals + Fat + Sugar +sugar_dummy| fbrand | `Avg Shelf Price` ~ `Avg Trans Price`:fbrand, 
+                        data = cerealdata, se = 'iid'))
+
+
+gof <- data.frame(raw = c("nobs", "adj.r.squared"),
+                  clean = c("Observations", "R2 adj."),
+                  fmt = c(0, 3))
+fe <- data.frame(FE = c("Brand FE", "Instruments","New variable"),
+                 mod1 = c("No", "None","No"),
+                 mod2 = c("No", "None","Yes"),
+                 mod3 = c("Yes", "None","No"),
+                 mod4 = c("Yes", "None","Yes"),
+                 mod5 = c("No", "Average advert Expenditure*brand","No"),
+                 mod6 = c("No", "Average advert Expenditure*brand","Yes"),
+                 mod7 = c("Yes", "Average Avg Trans Price*brand","No"),
+                 mod8 = c("Yes", "Average Avg Trans Price*brand","Yes"))
+                 
+
+attr(fe, "position") <- c(15, 16)
+
+modelsummary(list(ols_1o, ols_1n, ols_4o, ols_4n, iv1a_2o, iv1a_2n, iv2a_6o, iv2a_6n),
+              stars = c("*" = .1, "**" = .05, "***" = .01),
+              gof_map = gof, add_rows = fe, output = "markdown")
+
+```
+
+
+
+###QUESTION6
+
+
+
+
+
+
+
+```{r}
+summary(iv5 <- feols(mean_utility ~ fbrand | `Avg Shelf Price` ~ iva, data = cerealdata, se = 'iid'), stage = 1:2)
+
+elas <- merge(aggregate(cerealdata$mean_utility, list(cerealdata$fbrand), FUN = mean),
+              aggregate(cerealdata$`Avg Shelf Price`, list(cerealdata$fbrand), FUN = mean), by = "Group.1")
+names(elas) <- c("fbrand", "mean_utility_", "Avg_Shelf_Price_")
+elas$op_el <- coef(iv5)["fit_`Avg Shelf Price`"] * (elas$Avg_Shelf_Price_ / elas$mean_utility_)
+datasummary(Heading("") * mean * fbrand ~ Heading("Own-price elasticity") * op_el,
+             elas, fmt = 4, output = "markdown")
+
+```
+
+η = −αpj (1 − sj ), if j = k  -> so own price elasticities
+η = αpk sk , else (meaning j not equal to k) -> cross price elasticities
+
+
+
+
+
+
+
+```{r}
+summary(iv2a_6)
+```
+
+```{r}
+coefficients <- coef(iv2a_6)
+print(coefficients)
+```
+
+
+η = −αpj (1 − sj ), if j = k  -> so own price elasticities
+η = αpk sk , else (meaning j not equal to k) -> cross price elasticities
+
+
+```{r}
+cerealdata$`Mkt Share`
+```
+
+
+
+
+```{r}
+# Extract coefficients
+coefficients <- coef(iv2a_6)
+
+# Calculate own-price elasticity (j = k)
+own_price_elasticity <- -coefficients["fit_`Avg Shelf Price`"] * cerealdata$`Avg Shelf Price` * (1 - (cerealdata$`Mkt Share`/100))
+
+# Calculate cross-price elasticity (j ≠ k)
+cross_price_elasticity <- coefficients ["fit_`Avg Shelf Price`"]* cerealdata$`Avg Shelf Price` * (cerealdata$`Mkt Share`/100)
+
+
+print("Own-price elasticity:")
+print(own_price_elasticity)
+print("Cross-price elasticity:")
+print(cross_price_elasticity)
+
+```
+
+
+
+#Plot own price elasticities against prices
+
+```{r}
+library(ggplot2)
+
+# Create a data frame with the own price elasticities and prices
+elasticity_df <- data.frame(
+  Avg_Shelf_Price = cerealdata$`Avg Shelf Price`,
+  Own_Price_Elasticity = own_price_elasticity
+)
+
+# Plot own price elasticities against prices using ggplot2
+plot_elas_1 <- ggplot(elasticity_df, aes(x = Avg_Shelf_Price, y = Own_Price_Elasticity)) +
+  geom_point() +
+  geom_smooth(method = "loess", se = FALSE) +
+  labs(x = "Average Shelf Price", y = "Own-price Elasticity") +
+  theme_minimal()
+
+ggsave("Own price elasticities against price.jpeg", plot = plot_elas_1, dpi = 900 )
+
+print(plot_elas_1)
+
+
+```
+
+
+#Plot markups against prices
+
+```{r}
+library(ggplot2)
+library(dplyr)
+
+# Calculate markup as a percentage
+cerealdata <- cerealdata %>%
+  mutate(markup_percentage = discount_coupon * 100)
+
+# Plot markups against prices using ggplot2
+plot_elas_2 <- ggplot(cerealdata, aes(x = `Avg Shelf Price`, y = markup_percentage)) +
+  geom_point() +
+  geom_smooth(method = "loess", se = FALSE) +
+  labs(x = "Average Shelf Price", y = "Markup (%)") +
+  theme_minimal()
+
+ggsave("Markups against prices.jpeg", plot = plot_elas_2, dpi = 900)
+
+print(plot_elas_2)
+
+```
+
+#matrix 50X 50
+
+```{r}
+# Extract coefficients
+coefficients <- coef(iv2a_6)
+
+# Get the number of products
+num_products <- nrow(cerealdata)
+
+# Initialize an empty matrix to store the elasticities
+elasticity_matrix <- matrix(0, nrow = num_products, ncol = num_products)
+
+# Calculate own-price elasticity (j = k) and cross-price elasticity (j ≠ k)
+for (j in 1:num_products) {
+  for (k in 1:num_products) {
+    if (j == k) {
+      # Calculate own-price elasticity
+      elasticity_matrix[j, k] <- -coefficients["fit_`Avg Shelf Price`"] * cerealdata$`Avg Shelf Price`[j] * (1 - (cerealdata$`Mkt Share`[j]/100))
+    } else {
+      # Calculate cross-price elasticity
+      elasticity_matrix[j, k] <- coefficients["fit_`Avg Shelf Price`"] * cerealdata$`Avg Shelf Price`[j] * (cerealdata$`Mkt Share`[k]/100)
+    }
+  }
+}
+
+write.csv(elasticity_matrix, file = "elasticity_matrix.csv", row.names = FALSE)
+
+# Print the elasticity matrix
+print(elasticity_matrix)
+
+
+
+```
+
+
+```{r}
+# Load the xtable package
+library(xtable)
+
+# Extract coefficients
+coefficients <- coef(iv2a_6)
+
+# Get the number of products
+num_products <- nrow(cerealdata)
+
+# Initialize an empty matrix to store the elasticities
+elasticity_matrix <- matrix(0, nrow = num_products, ncol = num_products)
+
+# Calculate own-price elasticity (j = k) and cross-price elasticity (j ≠ k)
+for (j in 1:num_products) {
+  for (k in 1:num_products) {
+    if (j == k) {
+      # Calculate own-price elasticity
+      elasticity_matrix[j, k] <- -coefficients["fit_`Avg Shelf Price`"] * cerealdata$`Avg Shelf Price`[j] * (1 - (cerealdata$`Mkt Share`[j]/100))
+    } else {
+      # Calculate cross-price elasticity
+      elasticity_matrix[j, k] <- coefficients["fit_`Avg Shelf Price`"] * cerealdata$`Avg Shelf Price`[j] * (cerealdata$`Mkt Share`[k]/100)
+    }
+  }
+}
+
+# Create a LaTeX table
+latex_table <- xtable(elasticity_matrix, caption = "Elasticity Matrix")
+
+# Write the LaTeX table to a file
+print(latex_table, file = "elasticity_matrix.tex")
+
+```
+
+
+
+```{r}
+# Extract coefficients
+coefficients <- coef(iv2a_6)
+
+# Get the number of products
+num_products <- nrow(cerealdata)
+
+# Initialize an empty matrix to store the elasticities
+elasticity_matrix <- matrix(0, nrow = num_products, ncol = num_products)
+
+# Calculate own-price elasticity (j = k) and cross-price elasticity (j ≠ k)
+for (j in 1:num_products) {
+  for (k in 1:num_products) {
+    if (j == k) {
+      # Calculate own-price elasticity
+      elasticity_matrix[j, k] <- -coefficients["fit_`Avg Shelf Price`"] * cerealdata$`Avg Shelf Price`[j] * (1 - (cerealdata$`Mkt Share`[j]/100))
+    } else {
+      # Calculate cross-price elasticity
+      elasticity_matrix[j, k] <- coefficients["fit_`Avg Shelf Price`"] * cerealdata$`Avg Shelf Price`[j] * (cerealdata$`Mkt Share`[k]/100)
+    }
+  }
+}
+
+# Convert the matrix to a data frame for xtable
+df_elasticity <- as.data.frame(elasticity_matrix)
+
+# Creating LaTeX code for the table
+latex_table <- xtable(df_elasticity, caption = "Elasticity Matrix", label = "tab:elasticity_matrix")
+
+# Printing the LaTeX code for the table
+print(latex_table, type = "latex", include.rownames = FALSE, 
+      sanitize.text.function = function(x){x},
+      floating = FALSE, 
+      hline.after = c(-1, 0, nrow(df_elasticity)), 
+      booktabs = TRUE)
+
+# Saving the LaTeX code to a file
+writeLines(capture.output(print(latex_table, type = "latex", include.rownames = FALSE, 
+                                sanitize.text.function = function(x){x},
+                                floating = FALSE,
+                                hline.after = c(-1, 0, nrow(df_elasticity)),
+                                booktabs = TRUE)),
+           "elasticity_matrix.tex")
+
+
+
+```
+
