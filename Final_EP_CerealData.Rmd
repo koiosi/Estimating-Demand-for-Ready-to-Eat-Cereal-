@@ -1,6 +1,6 @@
 ---
 title: "EP_Cereal"
-author: "Stephanie Siguencia Ibadango, Maryam Moradi, Nigar Salmanzada, Canberk Atak"
+author: "Project with three other members, Canberk Atak"
 date: "`r Sys.Date()`"
 output:
   pdf_document: default
@@ -1103,4 +1103,6 @@ writeLines(capture.output(print(latex_table, type = "latex", include.rownames = 
 
 
 ```
+
+
 
