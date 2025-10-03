@@ -5,7 +5,11 @@ date: "`r Sys.Date()`"
 output:
   pdf_document: default
   html_document: default
+editor_options: 
+  markdown: 
+    wrap: 72
 ---
+
 ```{r}
 getwd()
 ```
@@ -14,8 +18,8 @@ getwd()
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+### Libraries
 
-### Libraries 
 ```{r}
 library(readxl)
 library(data.table)
@@ -36,17 +40,19 @@ library(corrplot)
 ```
 
 #Import data:
+
 ```{r}
 datapath <- file.path(getwd(), "Cereal_Data.xls") 
 cerealdata <- read_excel(datapath)
 ```
 
+####QUESTION1 1. **Data Description.** **Provide a brief, non-technical,
+overview of the market using descriptive tools (tables, plots) and
+focusing on a lay audience. Which are the salient features of the
+market, the main brands, segments, and products?**
 
-####QUESTION1
-1.  **Data Description.** 
-**Provide a brief, non-technical, overview of the market using descriptive tools (tables, plots) and focusing on a lay audience. Which are the salient features of the market, the main brands, segments, and products?**
+# Missing observations:
 
-# Missing observations: 
 ```{r}
 sapply(cerealdata, function(x) sum(is.na(x)))
 ```
@@ -56,17 +62,18 @@ library(naniar)
 vis_miss(cerealdata, warn_large_data = FALSE)
 ```
 
-In total 1% of observations are missing values. 
+In total 1% of observations are missing values.
 
 # Remove rows with missing values
+
 ```{r}
 cerealdata <- na.omit(cerealdata)
 ```
 
-
 ```{r}
 datasummary( All(cerealdata) ~ mean + sd + min + median + max, fmt = 4, data = cerealdata, output = "markdown")
 ```
+
 ##discount&coupons
 
 ```{r}
@@ -74,7 +81,6 @@ datasummary( All(cerealdata) ~ mean + sd + min + median + max, fmt = 4, data = c
 cerealdata <- cerealdata%>%
   mutate(coupon = `Avg Shelf Price` - `Avg Trans Price`)
 ```
-
 
 ```{r}
 
@@ -207,11 +213,11 @@ ggsave(filename = "Average Nutritional Values by Segment.jpeg",plot = plot_5, dp
 print(plot_5)
 ```
 
-
 ```{r}
 unique_product <- unique(cerealdata$Name)
 unique_product
 ```
+
 ##brand
 
 ```{r}
@@ -225,6 +231,7 @@ unique_brand
 ```
 
 ### plots of market share grouped by brand
+
 ```{r}
 
 # Calculating total market share for each brand
@@ -272,13 +279,13 @@ print(plot_7)
 
 ```
 
-
 ```{r}
 unique_product <- unique(cerealdata$Name)
 unique_product
 ```
 
 # plots of market share grouped by brand
+
 ```{r}
 library(ggplot2)
 
@@ -300,27 +307,32 @@ ggplot(df_brand, aes(x = reorder(Brand, total_market_share), y = total_market_sh
 
 ```
 
-
-
-
 ####QUESTION2
 
-2.  **The basics and OLS estimation.** 
-**Load the data, define the share of the outside good, create a variable to store the brand information and create the dependent variable to be used in the logit regressions (mean utility). Then estimate the following six specifications using OLS and including product characteristics Price, Cals, Fat, and Sugar:**
+2.  **The basics and OLS estimation.** **Load the data, define the share
+    of the outside good, create a variable to store the brand
+    information and create the dependent variable to be used in the
+    logit regressions (mean utility). Then estimate the following six
+    specifications using OLS and including product characteristics
+    Price, Cals, Fat, and Sugar:**
 
 # Load data:
+
 ```{r}
 datapath <- file.path(getwd(), "Cereal_Data.xls") 
 cerealdata <- read_excel(datapath)
 cerealdata <- na.omit(cerealdata)
 names(cerealdata)
 ```
+
 *share of the outside good*
+
 ```{r}
 outside_share=100-round(sum(cerealdata$`Mkt Share`))
 ```
 
 *brand information*
+
 ```{r}
 cerealdata <- cerealdata %>%
   mutate(
@@ -334,13 +346,11 @@ cerealdata$fsegment <- as.factor(cerealdata$Sgmnt)
 names(cerealdata)
 ```
 
-
 ```{r}
 cerealdata <- cerealdata %>%
   mutate(dummy = model.matrix(~ fbrand - 1, data = .))
 
 ```
-
 
 *mean utility as dependent variable*
 
@@ -349,7 +359,9 @@ cerealdata <- cerealdata %>%
   mutate(mean_utility = log(`Mkt Share`) - log(outside_share))
       
 ```
-**Then estimate the following six specifications using OLS and including product characteristics Price, Cals, Fat, and Sugar:**
+
+**Then estimate the following six specifications using OLS and including
+product characteristics Price, Cals, Fat, and Sugar:**
 
 ```{r}
 names(cerealdata)
@@ -367,19 +379,16 @@ summary(ols_1)
 
 ```
 
-
-
-
-*(2) Without brand fixed-effects, heteroskedasticity-robust standard errors;*
+*(2) Without brand fixed-effects, heteroskedasticity-robust standard
+errors;*
 
 ```{r}
 ols_2 <- feols(mean_utility ~ Cals + Fat + Sugar+`Avg Shelf Price`, data = cerealdata, vcov = "HC1")
 summary(ols_2)
 ```
 
-
-
-*(3) Without brand fixed-effects, standard errors clustered at the brand level*
+*(3) Without brand fixed-effects, standard errors clustered at the brand
+level*
 
 ```{r}
 
@@ -389,10 +398,9 @@ summary(ols_3)
 
 ```
 
+*By adding a brand fixed-effect I control for unobserved quality,* *(4)
+With brand fixed-effects, standard errors assuming IID errors;*
 
-
-*By adding a brand fixed-effect I control for unobserved quality, *
-*(4) With brand fixed-effects, standard errors assuming IID errors;*
 ```{r}
 
 ols_4 <- feols(mean_utility ~ Cals + Fat + Sugar+`Avg Shelf Price`| fbrand, data = cerealdata,
@@ -400,16 +408,18 @@ ols_4 <- feols(mean_utility ~ Cals + Fat + Sugar+`Avg Shelf Price`| fbrand, data
 summary(ols_4)
 ```
 
+*(5) With brand fixed-effects, heteroskedasticity-robust standard
+errors*
 
-*(5) With brand fixed-effects, heteroskedasticity-robust standard errors*
 ```{r}
 ols_5 <- feols(mean_utility ~ Cals + Fat + Sugar+`Avg Shelf Price`| fbrand, data = cerealdata,
                      vcov = 'HC1')
 summary(ols_5)
 ```
 
+*(6) With brand fixed-effects, standard errors clustered at the brand
+level*
 
-*(6) With brand fixed-effects, standard errors clustered at the brand level*
 ```{r}
 ols_6 <- feols(mean_utility ~ Cals + Fat + Sugar+`Avg Shelf Price` | fbrand,  data = cerealdata)
 summary(ols_6)
@@ -442,6 +452,7 @@ modelsummary(list(ols_1, ols_2, ols_3, ols_4, ols_5,ols_6),
               title = "Table 1: Analysis of cereal market using OLS with and without brand fixed-effects",gof_map = gof, add_rows = fe, output = "markdown")
 
 ```
+
 ```{r}
 cerealdata <- cerealdata %>%
   mutate(discount_coupon = `Avg Shelf Price` - `Avg Trans Price`)
@@ -450,8 +461,15 @@ cerealdata <- cerealdata %>%
 
 ####QUESTION3
 
-3. Instruments and IV estimation. Construct instruments to account for price endogeneity and use them to perform IV estimation. Report estimates on a table with specifications differing according to the instruments used. Which instruments have you constructed, and why? Can one claim that the more the merrier when it comes to instruments in this case?
-Note. Use the OLS estimates without and with brand fixed-effects with your preferred standard errors. Instrument each of them with the instruments you constructed and report a table with 6-8 specifications in total.
+3.  Instruments and IV estimation. Construct instruments to account for
+    price endogeneity and use them to perform IV estimation. Report
+    estimates on a table with specifications differing according to the
+    instruments used. Which instruments have you constructed, and why?
+    Can one claim that the more the merrier when it comes to instruments
+    in this case? Note. Use the OLS estimates without and with brand
+    fixed-effects with your preferred standard errors. Instrument each
+    of them with the instruments you constructed and report a table with
+    6-8 specifications in total.
 
 ```{r}
 library(ggplot2)
@@ -485,7 +503,6 @@ dev.off()
 
 
 ```
-
 
 ```{r}
 #  OLS with fixed effects
@@ -549,11 +566,8 @@ modelsummary(list(ols1_1, iv1a_2, iv1a_3, iv1a_4, ols_4_1, iv2a_5, iv2a_6,iv2a_7
 
 ```
 
-
-
-
-
 # testing the Instrumental variables_maryam:
+
 ```{r}
 fitstat(iv1a_2, ~ ivwald1 + ivf1 + kpr + sargan)
 ```
@@ -565,7 +579,6 @@ fitstat(iv1a_3, ~ ivwald1 + ivf1 + kpr + sargan)
 ```{r}
 fitstat(iv1a_4, ~ ivwald1 + ivf1 + kpr + sargan)
 ```
-
 
 ```{r}
 fitstat(iv2a_5, ~ ivwald1 + ivf1 + kpr + sargan)
@@ -579,15 +592,11 @@ fitstat(iv2a_6, ~ ivwald1 + ivf1 + kpr + sargan)
 fitstat(iv2a_7, ~ ivwald1 + ivf1 + kpr + sargan)
 ```
 
-
-
-
 ###QUESTION4
 
-#More instruments and IV estimation. In case you didn’t get a satisfactory specification, can you combine instruments to get better results? If so, how? Report a table with your estimates.
-
-
-
+#More instruments and IV estimation. In case you didn’t get a
+satisfactory specification, can you combine instruments to get better
+results? If so, how? Report a table with your estimates.
 
 ```{r}
 #price of other products within the same brand
@@ -610,7 +619,6 @@ cerealdata$iva <- with(cerealdata, {
 cor(subset(cerealdata, select = c("Avg Shelf Price", "iva")))
 ```
 
-
 ```{r}
 # discount coupon
 cerealdata <- cerealdata %>%
@@ -620,8 +628,6 @@ cor(subset(cerealdata, select = c("Avg Shelf Price", "ivb")))
 
 
 ```
-
-
 
 ```{r}
 summary(cerealdata$fsegment)
@@ -645,7 +651,6 @@ cerealdata$ivc <- with(cerealdata, {
 cor(subset(cerealdata, select = c("Avg Shelf Price", "ivc")))
 ```
 
-
 ```{r}
 cor(subset(cerealdata, select = c("Avg Shelf Price", "iva", "ivb", "ivc")))
 ```
@@ -659,8 +664,6 @@ heatmap(corr, labRow = c("Avg Shelf Price", "iva", "ivb", "ivc"),
         labCol = c("ASPrice", "iva", "ivb", "ivc"))
 
 ```
-
-
 
 ```{r}
 #model
@@ -706,12 +709,9 @@ modelsummary(list(ols2_1, iv3c_1,iv3c_2,iv3c_3, ols2_2,iv3c_4,iv3c_5,iv3c_6),
 
 ```
 
-
-
 ```{r}
 fitstat(iv3c_1, ~ ivwald1 + ivf1 + kpr + sargan)
 ```
-
 
 ```{r}
 fitstat(iv3c_2, ~ ivwald1 + ivf1 + kpr + sargan)
@@ -725,7 +725,6 @@ fitstat(iv3c_3, ~ ivwald1 + ivf1 + kpr + sargan)
 fitstat(iv3c_4, ~ ivwald1 + ivf1 + kpr + sargan)
 ```
 
-
 ```{r}
 fitstat(iv3c_5, ~ ivwald1 + ivf1 + kpr + sargan)
 ```
@@ -733,7 +732,6 @@ fitstat(iv3c_5, ~ ivwald1 + ivf1 + kpr + sargan)
 ```{r}
 fitstat(iv3c_6, ~ ivwald1 + ivf1 + kpr + sargan)
 ```
-
 
 #interaction
 
@@ -771,28 +769,40 @@ modelsummary(list(ols2_1, iv4c_1, ols2_2, iv4c_2),
 fitstat(iv4c_1, ~ ivwald1 + ivf1 + kpr + sargan)
 ```
 
-
 ```{r}
 fitstat(iv4c_2, ~ ivwald1 + ivf1 + kpr + sargan)
 ```
 
+###QUESTION5 \# Thinking out of the matrix. In case you didn’t get a
+satisfactory specification up to now, can you suggest any improvements?
+Hint: One improvement comes from a new variable. Another improvement
+comes from tackling the IIA property of logit models. As a guidance,
+When reporting, please include again the following specifications
+previously reported: (i) your preferred OLS logit specifications with
+and without brand FEs; (ii) your preferred IV logit specification with
+and without brand FEs which include all instruments.
 
-###QUESTION5
-# Thinking out of the matrix. In case you didn’t get a satisfactory specification up to now, can you suggest any improvements? Hint: One improvement comes from a new variable. Another improvement comes from tackling the IIA property of logit models.
-As a guidance, When reporting, please include again the following specifications previously reported: (i) your preferred OLS logit specifications with and without brand FEs; (ii) your preferred IV logit specification with and without brand FEs which include all instruments.
+The "IIA property" refers to the Independence of Irrelevant
+Alternatives, which is a key assumption in multinomial logit models.
+This assumption states that the odds of choosing one alternative over
+another are unaffected by the presence or absence of other alternatives
+in the choice set.
 
+However, the IIA property is often criticized because it can lead to
+unrealistic modeling assumptions. When the IIA property is violated, it
+implies that the relative attractiveness of alternatives is influenced
+by the inclusion or exclusion of irrelevant alternatives in the choice
+set. This can result in biased model estimates and misleading
+predictions.
 
+There are several techniques to address or mitigate violations of the
+IIA property:
 
-The "IIA property" refers to the Independence of Irrelevant Alternatives, which is a key assumption in multinomial logit models. This assumption states that the odds of choosing one alternative over another are unaffected by the presence or absence of other alternatives in the choice set.
-
-However, the IIA property is often criticized because it can lead to unrealistic modeling assumptions. When the IIA property is violated, it implies that the relative attractiveness of alternatives is influenced by the inclusion or exclusion of irrelevant alternatives in the choice set. This can result in biased model estimates and misleading predictions.
-
-There are several techniques to address or mitigate violations of the IIA property:
-
-1. **Nested Logit Models**: These models relax the assumption of independence by allowing for correlation within subsets of alternatives. Alternatives are grouped into nested subsets based on similarities or shared characteristics. This allows for more flexibility in capturing heterogeneity in preferences.
-
-
-
+1.  **Nested Logit Models**: These models relax the assumption of
+    independence by allowing for correlation within subsets of
+    alternatives. Alternatives are grouped into nested subsets based on
+    similarities or shared characteristics. This allows for more
+    flexibility in capturing heterogeneity in preferences.
 
 ```{r}
 # Create dummy variable for sugar
@@ -864,15 +874,7 @@ modelsummary(list(ols_1o, ols_1n, ols_4o, ols_4n, iv1a_2o, iv1a_2n, iv2a_6o, iv2
 
 ```
 
-
-
 ###QUESTION6
-
-
-
-
-
-
 
 ```{r}
 summary(iv5 <- feols(mean_utility ~ fbrand | `Avg Shelf Price` ~ iva, data = cerealdata, se = 'iid'), stage = 1:2)
@@ -886,14 +888,8 @@ datasummary(Heading("") * mean * fbrand ~ Heading("Own-price elasticity") * op_e
 
 ```
 
-η = −αpj (1 − sj ), if j = k  -> so own price elasticities
-η = αpk sk , else (meaning j not equal to k) -> cross price elasticities
-
-
-
-
-
-
+η = −αpj (1 − sj ), if j = k -\> so own price elasticities η = αpk sk ,
+else (meaning j not equal to k) -\> cross price elasticities
 
 ```{r}
 summary(iv2a_6)
@@ -904,17 +900,12 @@ coefficients <- coef(iv2a_6)
 print(coefficients)
 ```
 
-
-η = −αpj (1 − sj ), if j = k  -> so own price elasticities
-η = αpk sk , else (meaning j not equal to k) -> cross price elasticities
-
+η = −αpj (1 − sj ), if j = k -\> so own price elasticities η = αpk sk ,
+else (meaning j not equal to k) -\> cross price elasticities
 
 ```{r}
 cerealdata$`Mkt Share`
 ```
-
-
-
 
 ```{r}
 # Extract coefficients
@@ -933,8 +924,6 @@ print("Cross-price elasticity:")
 print(cross_price_elasticity)
 
 ```
-
-
 
 #Plot own price elasticities against prices
 
@@ -960,7 +949,6 @@ print(plot_elas_1)
 
 
 ```
-
 
 #Plot markups against prices
 
@@ -1019,7 +1007,6 @@ print(elasticity_matrix)
 
 ```
 
-
 ```{r}
 # Load the xtable package
 library(xtable)
@@ -1053,8 +1040,6 @@ latex_table <- xtable(elasticity_matrix, caption = "Elasticity Matrix")
 print(latex_table, file = "elasticity_matrix.tex")
 
 ```
-
-
 
 ```{r}
 # Extract coefficients
@@ -1103,6 +1088,3 @@ writeLines(capture.output(print(latex_table, type = "latex", include.rownames = 
 
 
 ```
-
-
-
