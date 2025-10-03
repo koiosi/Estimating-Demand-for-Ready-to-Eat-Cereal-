@@ -18,7 +18,7 @@ getwd()
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-### Libraries
+# Libraries
 
 ```{r}
 library(readxl)
@@ -46,12 +46,14 @@ datapath <- file.path(getwd(), "Cereal_Data.xls")
 cerealdata <- read_excel(datapath)
 ```
 
-####QUESTION1 1. **Data Description.** **Provide a brief, non-technical,
-overview of the market using descriptive tools (tables, plots) and
-focusing on a lay audience. Which are the salient features of the
-market, the main brands, segments, and products?**
+# TASK 1 
 
-# Missing observations:
+1\. **Data Description.** **Provide a brief, non-technical, overview of
+the market using descriptive tools (tables, plots) and focusing on a lay
+audience. Which are the salient features of the market, the main brands,
+segments, and products?**
+
+Missing observations:
 
 ```{r}
 sapply(cerealdata, function(x) sum(is.na(x)))
@@ -64,7 +66,7 @@ vis_miss(cerealdata, warn_large_data = FALSE)
 
 In total 1% of observations are missing values.
 
-# Remove rows with missing values
+## Remove rows with missing values
 
 ```{r}
 cerealdata <- na.omit(cerealdata)
@@ -230,7 +232,7 @@ unique_brand <- unique(cerealdata$Brand)
 unique_brand
 ```
 
-### plots of market share grouped by brand
+## Plots of market share grouped by brand
 
 ```{r}
 
@@ -284,7 +286,7 @@ unique_product <- unique(cerealdata$Name)
 unique_product
 ```
 
-# plots of market share grouped by brand
+## Plots of market share grouped by brand
 
 ```{r}
 library(ggplot2)
@@ -307,7 +309,7 @@ ggplot(df_brand, aes(x = reorder(Brand, total_market_share), y = total_market_sh
 
 ```
 
-####QUESTION2
+# TASK 2
 
 2.  **The basics and OLS estimation.** **Load the data, define the share
     of the outside good, create a variable to store the brand
@@ -316,7 +318,7 @@ ggplot(df_brand, aes(x = reorder(Brand, total_market_share), y = total_market_sh
     specifications using OLS and including product characteristics
     Price, Cals, Fat, and Sugar:**
 
-# Load data:
+Load data:
 
 ```{r}
 datapath <- file.path(getwd(), "Cereal_Data.xls") 
@@ -459,17 +461,17 @@ cerealdata <- cerealdata %>%
 
 ```
 
-####QUESTION3
+# TASK 3
 
-3.  Instruments and IV estimation. Construct instruments to account for
-    price endogeneity and use them to perform IV estimation. Report
+3.  **Instruments and IV estimation. Construct instruments to account
+    for price endogeneity and use them to perform IV estimation. Report
     estimates on a table with specifications differing according to the
     instruments used. Which instruments have you constructed, and why?
     Can one claim that the more the merrier when it comes to instruments
     in this case? Note. Use the OLS estimates without and with brand
     fixed-effects with your preferred standard errors. Instrument each
     of them with the instruments you constructed and report a table with
-    6-8 specifications in total.
+    6-8 specifications in total**.
 
 ```{r}
 library(ggplot2)
@@ -566,7 +568,7 @@ modelsummary(list(ols1_1, iv1a_2, iv1a_3, iv1a_4, ols_4_1, iv2a_5, iv2a_6,iv2a_7
 
 ```
 
-# testing the Instrumental variables_maryam:
+## Testing the Instrumental variables:
 
 ```{r}
 fitstat(iv1a_2, ~ ivwald1 + ivf1 + kpr + sargan)
@@ -592,11 +594,11 @@ fitstat(iv2a_6, ~ ivwald1 + ivf1 + kpr + sargan)
 fitstat(iv2a_7, ~ ivwald1 + ivf1 + kpr + sargan)
 ```
 
-###QUESTION4
+# TASK 4
 
-#More instruments and IV estimation. In case you didn’t get a
+**More instruments and IV estimation. In case you didn’t get a
 satisfactory specification, can you combine instruments to get better
-results? If so, how? Report a table with your estimates.
+results? If so, how? Report a table with your estimates.**
 
 ```{r}
 #price of other products within the same brand
@@ -773,14 +775,16 @@ fitstat(iv4c_1, ~ ivwald1 + ivf1 + kpr + sargan)
 fitstat(iv4c_2, ~ ivwald1 + ivf1 + kpr + sargan)
 ```
 
-###QUESTION5 \# Thinking out of the matrix. In case you didn’t get a
-satisfactory specification up to now, can you suggest any improvements?
-Hint: One improvement comes from a new variable. Another improvement
-comes from tackling the IIA property of logit models. As a guidance,
-When reporting, please include again the following specifications
-previously reported: (i) your preferred OLS logit specifications with
-and without brand FEs; (ii) your preferred IV logit specification with
-and without brand FEs which include all instruments.
+# TASK 5
+
+**Thinking out of the matrix. In case you didn’t get a satisfactory
+specification up to now, can you suggest any improvements? Hint: One
+improvement comes from a new variable. Another improvement comes from
+tackling the IIA property of logit models. As a guidance, When
+reporting, please include again the following specifications previously
+reported: (i) your preferred OLS logit specifications with and without
+brand FEs; (ii) your preferred IV logit specification with and without
+brand FEs which include all instruments.**
 
 The "IIA property" refers to the Independence of Irrelevant
 Alternatives, which is a key assumption in multinomial logit models.
