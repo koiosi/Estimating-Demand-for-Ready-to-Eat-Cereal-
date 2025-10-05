@@ -4,7 +4,7 @@
 
 ---
 
-## 🎯 Overview
+##  Overview
 This project investigates how **price and nutritional characteristics** (such as calories, fat, and sugar content) influence consumer choices in the cereal market.  
 Using econometric modeling techniques in **R**, we estimate demand equations, address **price endogeneity**, and test the **validity of instrumental variables**.
 
@@ -12,7 +12,7 @@ Developed collaboratively with **Canberk Atak** and team members as part of an i
 
 ---
 
-## 🧩 Objectives
+##  Objectives
 - Describe and visualize the U.S. cereal market structure  
 - Estimate demand models using **OLS** and **IV regression**  
 - Evaluate **instrument strength and validity**  
@@ -20,7 +20,7 @@ Developed collaboratively with **Canberk Atak** and team members as part of an i
 
 ---
 
-## 📊 Dataset
+##  Dataset
 The dataset (`Cereal_Data.xls`) contains detailed information on cereal brands and product features, including:
 
 | Variable | Description |
@@ -36,7 +36,7 @@ The dataset (`Cereal_Data.xls`) contains detailed information on cereal brands a
 
 ---
 
-## 🧠 Methodology
+##  Methodology
 
 ### 🔹 Task 1 — Market Description
 - Data cleaning, handling missing values with `naniar`
@@ -72,7 +72,7 @@ Developed new instruments based on:
 
 ---
 
-## 🧮 Tools & Libraries
+##  Tools & Libraries
 Built entirely in **R**, using the following packages:
 
 ```r
@@ -91,7 +91,7 @@ library(sandwich)
 ```
 
 
-## 📈 Key Insights & Takeaways
+##  Key Insights & Takeaways
 
 | **Aspect** | **Insight** |
 |-------------|-------------|
@@ -103,7 +103,7 @@ library(sandwich)
 
 ---
 
-## 💼 Business Insights
+##  Business Insights
 
 **1. Pricing Strategy**  
 Consumers react strongly to price changes — indicating **limited pricing power** for most brands.  
@@ -125,7 +125,7 @@ Investing in **brand reputation, familiarity, and trust** generates measurable r
 
 ---
 
-## 🧾 Summary of Main Results
+##  Summary of Main Results
 
 | **Model** | **Instruments** | **Brand FE** | **Main Finding** |
 |------------|-----------------|---------------|------------------|
@@ -133,3 +133,15 @@ Investing in **brand reputation, familiarity, and trust** generates measurable r
 | IV | Ad × Brand | No | Corrects for endogeneity and reduces bias |
 | IV | Trans Price × Brand | Yes | Improves model precision and fit |
 | OLS + New Var | None | Yes | Adding sugar dummy enhances explanatory power |
+
+
+---
+
+##  Interpretation
+
+Overall, this analysis demonstrates that consumer behavior in the cereal market is shaped by a mix of **price sensitivity, brand loyalty, and nutritional preferences**.  
+Accounting for **brand-level heterogeneity** and **price endogeneity** improves model accuracy and provides a more realistic understanding of market dynamics.  
+These insights can inform both **business strategies** (pricing, advertising, segmentation) and **academic discussions** on applied microeconometrics.
+
+---
+
